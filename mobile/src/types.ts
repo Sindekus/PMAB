@@ -2,7 +2,7 @@ export type Role = 'customer' | 'employee';
 
 export type CustomerTab = 'Auta' | 'Wizyty' | 'Uslugi';
 
-export type EmployeeTab = 'Dzisiaj' | 'Klienci' | 'Uslugi';
+export type EmployeeTab = 'Wizyty' | 'Klienci' | 'Uslugi' | 'Slowniki';
 
 export type LoggedUser = {
   userAccountId: number;
@@ -10,19 +10,6 @@ export type LoggedUser = {
   displayName: string;
   customerId: number | null;
   employeeId: number | null;
-};
-
-export type AppointmentStatus = 'Nowa' | 'Potwierdzona' | 'W trakcie';
-
-export type Appointment = {
-  id: number;
-  time: string;
-  customer?: string;
-  vehicle: string;
-  registrationNumber: string;
-  services: string;
-  date?: string;
-  status: AppointmentStatus;
 };
 
 export type VehicleBrand = {
@@ -53,4 +40,104 @@ export type WorkshopService = {
   description: string;
   basePrice: number;
   estimatedDurationMinutes: number;
+};
+
+export type Employee = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+};
+
+export type CustomerSummary = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  vehiclesCount: number;
+};
+
+export type VehicleSummary = {
+  id: number;
+  brandName: string;
+  model: string;
+  year: number;
+  engineType: string;
+};
+
+export type CustomerDetails = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  vehicles: VehicleSummary[];
+};
+
+export type AppointmentStatusOption = {
+  id: number;
+  code: string;
+  name: string;
+};
+
+export type CustomerAppointmentSummary = {
+  id: number;
+  scheduledAt: string;
+  vehicleId: number;
+  vehicleBrandName: string;
+  vehicleModel: string;
+  employeeId: number | null;
+  employeeName: string | null;
+  appointmentStatusId: number;
+  statusCode: string;
+  statusName: string;
+  servicesCount: number;
+  totalPrice: number;
+};
+
+export type AppointmentSummary = CustomerAppointmentSummary & {
+  customerId: number;
+  customerName: string;
+};
+
+export type AppointmentServiceItem = {
+  id: number;
+  workshopServiceId: number;
+  serviceName: string;
+  categoryName: string;
+  price: number;
+  durationMinutes: number;
+  notes: string | null;
+};
+
+export type AppointmentNoteItem = {
+  id: number;
+  content: string;
+  createdAt: string;
+  employeeId: number;
+  employeeName: string;
+};
+
+export type AppointmentDetails = {
+  id: number;
+  scheduledAt: string;
+  createdAt: string;
+  customerNotes: string | null;
+  customerId: number;
+  customerName: string;
+  customerPhone: string;
+  vehicleId: number;
+  vehicleBrandName: string;
+  vehicleModel: string;
+  vehicleYear: number;
+  employeeId: number | null;
+  employeeName: string | null;
+  appointmentStatusId: number;
+  statusCode: string;
+  statusName: string;
+  services: AppointmentServiceItem[];
+  notes: AppointmentNoteItem[];
+  totalPrice: number;
 };

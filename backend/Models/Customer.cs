@@ -17,4 +17,6 @@ public class Customer
     public ICollection<UserAccount> UserAccounts { get; set; } = new List<UserAccount>();
 
     public ICollection<Vehicle> Vehicles { get; set; } = new List<Vehicle>();
+
+    public ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
 }

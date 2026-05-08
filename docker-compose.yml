@@ -16,5 +16,19 @@ services:
       retries: 10
       start_period: 30s
 
+  backend:
+    build:
+      context: ./backend
+    container_name: pmab-workshop-backend
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://0.0.0.0:5203
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=WorkshopDb;User Id=sa;Password=Haslo123!;TrustServerCertificate=True"
+    ports:
+      - "5203:5203"
+
 volumes:
   sqlserver_data:

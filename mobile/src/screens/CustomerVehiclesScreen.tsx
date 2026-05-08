@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -15,6 +16,22 @@ import type { Vehicle, VehicleBrand } from '../types';
 
 const engineTypes = ['Benzyna', 'Diesel'];
 
+type VehicleFormState = {
+  id: number | null;
+  vehicleBrandId: number | null;
+  model: string;
+  year: string;
+  engineType: string;
+};
+
+const emptyForm: VehicleFormState = {
+  id: null,
+  vehicleBrandId: null,
+  model: '',
+  year: '',
+  engineType: 'Benzyna',
+};
+
 type Props = {
   customerId: number | null;
 };
@@ -22,10 +39,7 @@ type Props = {
 export function CustomerVehiclesScreen({ customerId }: Props) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [brands, setBrands] = useState<VehicleBrand[]>([]);
-  const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
-  const [model, setModel] = useState('');
-  const [year, setYear] = useState('');
-  const [engineType, setEngineType] = useState('Benzyna');
+  const [form, setForm] = useState<VehicleFormState>(emptyForm);
   const [modalVisible, setModalVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -61,10 +75,6 @@ export function CustomerVehiclesScreen({ customerId }: Props) {
 
       setVehicles(vehiclesData);
       setBrands(brandsData);
-
-      if (!selectedBrandId && brandsData.length > 0) {
-        setSelectedBrandId(brandsData[0].id);
-      }
     } catch {
       setError('Nie mozna polaczyc sie z API. Sprawdz, czy backend jest wlaczony.');
     } finally {
@@ -72,15 +82,41 @@ export function CustomerVehiclesScreen({ customerId }: Props) {
     }
   }
 
-  async function handleAddVehicle() {
-    if (!customerId || !selectedBrandId) {
+  function openCreateModal() {
+    setError('');
+    setForm({
+      ...emptyForm,
+      vehicleBrandId: brands[0]?.id ?? null,
+    });
+    setModalVisible(true);
+  }
+
+  function openEditModal(vehicle: Vehicle) {
+    setError('');
+    setForm({
+      id: vehicle.id,
+      vehicleBrandId: vehicle.vehicleBrandId,
+      model: vehicle.model,
+      year: String(vehicle.year),
+      engineType: vehicle.engineType,
+    });
+    setModalVisible(true);
+  }
+
+  function closeModal() {
+    setModalVisible(false);
+    setForm(emptyForm);
+  }
+
+  async function handleSave() {
+    if (!customerId || !form.vehicleBrandId) {
       setError('Wybierz marke pojazdu.');
       return;
     }
 
-    const parsedYear = Number(year);
+    const parsedYear = Number(form.year);
 
-    if (!model.trim() || !parsedYear) {
+    if (!form.model.trim() || !parsedYear) {
       setError('Uzupelnij model i rok pojazdu.');
       return;
     }
@@ -88,27 +124,39 @@ export function CustomerVehiclesScreen({ customerId }: Props) {
     setError('');
     setIsSubmitting(true);
 
+    const payload = {
+      vehicleBrandId: form.vehicleBrandId,
+      model: form.model,
+      year: parsedYear,
+      engineType: form.engineType,
+    };
+
     try {
-      const response = await fetch(`${API_BASE_URL}/api/customers/${customerId}/vehicles`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          vehicleBrandId: selectedBrandId,
-          model,
-          year: parsedYear,
-          engineType,
-        }),
-      });
+      const response = await fetch(
+        form.id
+          ? `${API_BASE_URL}/api/customers/${customerId}/vehicles/${form.id}`
+          : `${API_BASE_URL}/api/customers/${customerId}/vehicles`,
+        {
+          method: form.id ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
 
       if (!response.ok) {
-        setError('Nie udalo sie dodac auta.');
+        setError('Nie udalo sie zapisac auta.');
         return;
       }
 
-      const createdVehicle = await response.json();
-      setVehicles((currentVehicles) => [...currentVehicles, createdVehicle]);
+      const saved: Vehicle = await response.json();
+
+      setVehicles((current) => {
+        if (!form.id) {
+          return [...current, saved];
+        }
+
+        return current.map((v) => (v.id === saved.id ? saved : v));
+      });
+
       closeModal();
     } catch {
       setError('Nie mozna polaczyc sie z API. Sprawdz, czy backend jest wlaczony.');
@@ -117,11 +165,37 @@ export function CustomerVehiclesScreen({ customerId }: Props) {
     }
   }
 
-  function closeModal() {
-    setModalVisible(false);
-    setModel('');
-    setYear('');
-    setEngineType('Benzyna');
+  function confirmDelete(vehicle: Vehicle) {
+    Alert.alert(
+      'Usunac auto?',
+      `${vehicle.brandName} ${vehicle.model} zostanie usuniete z listy.`,
+      [
+        { text: 'Anuluj', style: 'cancel' },
+        { text: 'Usun', style: 'destructive', onPress: () => void deleteVehicle(vehicle.id) },
+      ]);
+  }
+
+  async function deleteVehicle(vehicleId: number) {
+    if (!customerId) {
+      return;
+    }
+
+    setError('');
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/customers/${customerId}/vehicles/${vehicleId}`,
+        { method: 'DELETE' });
+
+      if (!response.ok) {
+        setError('Nie udalo sie usunac auta.');
+        return;
+      }
+
+      setVehicles((current) => current.filter((v) => v.id !== vehicleId));
+    } catch {
+      setError('Nie mozna polaczyc sie z API. Sprawdz, czy backend jest wlaczony.');
+    }
   }
 
   return (
@@ -132,7 +206,7 @@ export function CustomerVehiclesScreen({ customerId }: Props) {
       </View>
 
       <View style={styles.addButtonWrap}>
-        <Pressable style={styles.addButton} onPress={() => setModalVisible(true)}>
+        <Pressable style={styles.addButton} onPress={openCreateModal}>
           <Text style={styles.addButtonTitle}>Dodaj auto</Text>
           <Text style={styles.addButtonSubtitle}>Marka, model, rok i typ silnika</Text>
         </Pressable>
@@ -154,7 +228,12 @@ export function CustomerVehiclesScreen({ customerId }: Props) {
             </View>
           ) : (
             vehicles.map((vehicle) => (
-              <VehicleCard key={vehicle.id} vehicle={vehicle} />
+              <VehicleCard
+                key={vehicle.id}
+                vehicle={vehicle}
+                onEdit={() => openEditModal(vehicle)}
+                onDelete={() => confirmDelete(vehicle)}
+              />
             ))
           )}
         </View>
@@ -170,8 +249,8 @@ export function CustomerVehiclesScreen({ customerId }: Props) {
           <View style={styles.modalPanel}>
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.kicker}>Nowe auto</Text>
-                <Text style={styles.modalTitle}>Dodaj auto</Text>
+                <Text style={styles.kicker}>{form.id ? 'Edycja' : 'Nowe auto'}</Text>
+                <Text style={styles.modalTitle}>{form.id ? 'Edytuj auto' : 'Dodaj auto'}</Text>
               </View>
               <Pressable style={styles.closeButton} onPress={closeModal}>
                 <Text style={styles.closeButtonText}>Zamknij</Text>
@@ -186,13 +265,13 @@ export function CustomerVehiclesScreen({ customerId }: Props) {
                 <Text style={styles.inputLabel}>Marka</Text>
                 <View style={styles.optionGrid}>
                   {brands.map((brand) => {
-                    const selected = brand.id === selectedBrandId;
+                    const selected = brand.id === form.vehicleBrandId;
 
                     return (
                       <Pressable
                         key={brand.id}
                         style={[styles.optionButton, selected && styles.optionButtonSelected]}
-                        onPress={() => setSelectedBrandId(brand.id)}
+                        onPress={() => setForm((f) => ({ ...f, vehicleBrandId: brand.id }))}
                       >
                         <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
                           {brand.name}
@@ -206,8 +285,8 @@ export function CustomerVehiclesScreen({ customerId }: Props) {
               <View style={styles.formGroup}>
                 <Text style={styles.inputLabel}>Model</Text>
                 <TextInput
-                  value={model}
-                  onChangeText={setModel}
+                  value={form.model}
+                  onChangeText={(value) => setForm((f) => ({ ...f, model: value }))}
                   placeholder="np. Corolla"
                   placeholderTextColor={colors.muted}
                   style={styles.textInput}
@@ -217,8 +296,8 @@ export function CustomerVehiclesScreen({ customerId }: Props) {
               <View style={styles.formGroup}>
                 <Text style={styles.inputLabel}>Rok</Text>
                 <TextInput
-                  value={year}
-                  onChangeText={setYear}
+                  value={form.year}
+                  onChangeText={(value) => setForm((f) => ({ ...f, year: value }))}
                   keyboardType="number-pad"
                   placeholder="np. 2019"
                   placeholderTextColor={colors.muted}
@@ -230,13 +309,13 @@ export function CustomerVehiclesScreen({ customerId }: Props) {
                 <Text style={styles.inputLabel}>Silnik</Text>
                 <View style={styles.optionGrid}>
                   {engineTypes.map((type) => {
-                    const selected = type === engineType;
+                    const selected = type === form.engineType;
 
                     return (
                       <Pressable
                         key={type}
                         style={[styles.optionButton, selected && styles.optionButtonSelected]}
-                        onPress={() => setEngineType(type)}
+                        onPress={() => setForm((f) => ({ ...f, engineType: type }))}
                       >
                         <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
                           {type}
@@ -248,14 +327,14 @@ export function CustomerVehiclesScreen({ customerId }: Props) {
               </View>
 
               <Pressable
-                onPress={handleAddVehicle}
+                onPress={handleSave}
                 disabled={isSubmitting}
                 style={[styles.submitButton, isSubmitting && styles.buttonDisabled]}
               >
                 {isSubmitting ? (
                   <ActivityIndicator color={colors.surface} />
                 ) : (
-                  <Text style={styles.submitButtonText}>Zapisz auto</Text>
+                  <Text style={styles.submitButtonText}>{form.id ? 'Zapisz zmiany' : 'Zapisz auto'}</Text>
                 )}
               </Pressable>
             </ScrollView>
@@ -266,7 +345,15 @@ export function CustomerVehiclesScreen({ customerId }: Props) {
   );
 }
 
-function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
+function VehicleCard({
+  vehicle,
+  onEdit,
+  onDelete,
+}: {
+  vehicle: Vehicle;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   return (
     <View style={styles.vehicleCard}>
       <Text style={styles.vehicleTitle}>
@@ -275,6 +362,14 @@ function VehicleCard({ vehicle }: { vehicle: Vehicle }) {
       <View style={styles.vehicleMetaRow}>
         <Text style={styles.vehicleMeta}>{vehicle.year}</Text>
         <Text style={styles.vehicleMeta}>{vehicle.engineType}</Text>
+      </View>
+      <View style={styles.actionsRow}>
+        <Pressable style={styles.secondaryButton} onPress={onEdit}>
+          <Text style={styles.secondaryButtonText}>Edytuj</Text>
+        </Pressable>
+        <Pressable style={styles.deleteButton} onPress={onDelete}>
+          <Text style={styles.deleteButtonText}>Usun</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -363,6 +458,37 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 14,
     fontWeight: '600',
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  secondaryButton: {
+    flex: 1,
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+    borderRadius: 8,
+  },
+  secondaryButtonText: {
+    color: colors.blue,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  deleteButton: {
+    flex: 1,
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFE8E6',
+    borderRadius: 8,
+  },
+  deleteButtonText: {
+    color: colors.red,
+    fontSize: 14,
+    fontWeight: '700',
   },
   emptyText: {
     color: colors.muted,

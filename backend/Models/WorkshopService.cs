@@ -17,4 +17,6 @@ public class WorkshopService
     public int EstimatedDurationMinutes { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    public ICollection<AppointmentService> AppointmentServices { get; set; } = new List<AppointmentService>();
 }

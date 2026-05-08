@@ -38,19 +38,11 @@ public class VehiclesController(AppDbContext db) : ControllerBase
             return NotFound(new { message = "Klient nie istnieje." });
         }
 
-        var brand = await db.VehicleBrands
-            .FirstOrDefaultAsync(vehicleBrand =>
-                vehicleBrand.Id == request.VehicleBrandId &&
-                vehicleBrand.IsActive);
+        var validationError = await ValidateRequest(request);
 
-        if (brand is null)
+        if (validationError is not null)
         {
-            return BadRequest(new { message = "Wybrana marka nie istnieje." });
-        }
-
-        if (request.Year < 1950 || request.Year > DateTime.UtcNow.Year + 1)
-        {
-            return BadRequest(new { message = "Nieprawidlowy rok pojazdu." });
+            return validationError;
         }
 
         var vehicle = new Vehicle
@@ -65,6 +57,8 @@ public class VehiclesController(AppDbContext db) : ControllerBase
         db.Vehicles.Add(vehicle);
         await db.SaveChangesAsync();
 
+        var brand = await db.VehicleBrands.FirstAsync(b => b.Id == vehicle.VehicleBrandId);
+
         var response = new VehicleResponse(
             vehicle.Id,
             brand.Id,
@@ -75,13 +69,103 @@ public class VehiclesController(AppDbContext db) : ControllerBase
 
         return CreatedAtAction(nameof(GetCustomerVehicles), new { customerId }, response);
     }
+
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<VehicleResponse>> Update(int customerId, int id, UpdateVehicleRequest request)
+    {
+        var vehicle = await db.Vehicles
+            .FirstOrDefaultAsync(v => v.Id == id && v.CustomerId == customerId && v.IsActive);
+
+        if (vehicle is null)
+        {
+            return NotFound(new { message = "Auto nie istnieje." });
+        }
+
+        var validationError = await ValidateRequest(request);
+
+        if (validationError is not null)
+        {
+            return validationError;
+        }
+
+        vehicle.VehicleBrandId = request.VehicleBrandId;
+        vehicle.Model = request.Model.Trim();
+        vehicle.Year = request.Year;
+        vehicle.EngineType = request.EngineType.Trim();
+
+        await db.SaveChangesAsync();
+
+        var brand = await db.VehicleBrands.FirstAsync(b => b.Id == vehicle.VehicleBrandId);
+
+        return Ok(new VehicleResponse(
+            vehicle.Id,
+            brand.Id,
+            brand.Name,
+            vehicle.Model,
+            vehicle.Year,
+            vehicle.EngineType));
+    }
+
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int customerId, int id)
+    {
+        var vehicle = await db.Vehicles
+            .FirstOrDefaultAsync(v => v.Id == id && v.CustomerId == customerId && v.IsActive);
+
+        if (vehicle is null)
+        {
+            return NotFound(new { message = "Auto nie istnieje." });
+        }
+
+        vehicle.IsActive = false;
+        await db.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    private async Task<ActionResult?> ValidateRequest(VehicleRequest request)
+    {
+        if (!await db.VehicleBrands.AnyAsync(b => b.Id == request.VehicleBrandId && b.IsActive))
+        {
+            return BadRequest(new { message = "Wybrana marka nie istnieje." });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Model))
+        {
+            return BadRequest(new { message = "Model pojazdu jest wymagany." });
+        }
+
+        if (request.Year < 1950 || request.Year > DateTime.UtcNow.Year + 1)
+        {
+            return BadRequest(new { message = "Nieprawidlowy rok pojazdu." });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.EngineType))
+        {
+            return BadRequest(new { message = "Typ silnika jest wymagany." });
+        }
+
+        return null;
+    }
 }
+
+public abstract record VehicleRequest(
+    int VehicleBrandId,
+    string Model,
+    int Year,
+    string EngineType);
 
 public record CreateVehicleRequest(
     int VehicleBrandId,
     string Model,
     int Year,
-    string EngineType);
+    string EngineType) : VehicleRequest(VehicleBrandId, Model, Year, EngineType);
+
+public record UpdateVehicleRequest(
+    int VehicleBrandId,
+    string Model,
+    int Year,
+    string EngineType) : VehicleRequest(VehicleBrandId, Model, Year, EngineType);
 
 public record VehicleResponse(
     int Id,

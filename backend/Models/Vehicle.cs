@@ -19,4 +19,6 @@ public class Vehicle
     public string EngineType { get; set; } = string.Empty;
 
     public bool IsActive { get; set; } = true;
+
+    public ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
 }

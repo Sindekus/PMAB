@@ -15,4 +15,8 @@ public class Employee
     public bool IsActive { get; set; } = true;
 
     public ICollection<UserAccount> UserAccounts { get; set; } = new List<UserAccount>();
+
+    public ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
+
+    public ICollection<AppointmentNote> AppointmentNotes { get; set; } = new List<AppointmentNote>();
 }

@@ -19,6 +19,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     public DbSet<WorkshopService> WorkshopServices => Set<WorkshopService>();
 
+    public DbSet<AppointmentStatus> AppointmentStatuses => Set<AppointmentStatus>();
+
+    public DbSet<Appointment> Appointments => Set<Appointment>();
+
+    public DbSet<AppointmentService> AppointmentServices => Set<AppointmentService>();
+
+    public DbSet<AppointmentNote> AppointmentNotes => Set<AppointmentNote>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -96,6 +104,71 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasOne(service => service.ServiceCategory)
                 .WithMany(category => category.WorkshopServices)
                 .HasForeignKey(service => service.ServiceCategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AppointmentStatus>(entity =>
+        {
+            entity.Property(status => status.Name).HasMaxLength(60).IsRequired();
+            entity.Property(status => status.Code).HasMaxLength(30).IsRequired();
+            entity.HasIndex(status => status.Code).IsUnique();
+        });
+
+        modelBuilder.Entity<Appointment>(entity =>
+        {
+            entity.Property(appointment => appointment.CustomerNotes).HasMaxLength(500);
+
+            entity.HasOne(appointment => appointment.Customer)
+                .WithMany(customer => customer.Appointments)
+                .HasForeignKey(appointment => appointment.CustomerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(appointment => appointment.Vehicle)
+                .WithMany(vehicle => vehicle.Appointments)
+                .HasForeignKey(appointment => appointment.VehicleId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(appointment => appointment.Employee)
+                .WithMany(employee => employee.Appointments)
+                .HasForeignKey(appointment => appointment.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(appointment => appointment.AppointmentStatus)
+                .WithMany(status => status.Appointments)
+                .HasForeignKey(appointment => appointment.AppointmentStatusId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(appointment => appointment.ScheduledAt);
+        });
+
+        modelBuilder.Entity<AppointmentService>(entity =>
+        {
+            entity.Property(service => service.Price).HasPrecision(10, 2);
+            entity.Property(service => service.Notes).HasMaxLength(500);
+
+            entity.HasOne(service => service.Appointment)
+                .WithMany(appointment => appointment.Services)
+                .HasForeignKey(service => service.AppointmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(service => service.WorkshopService)
+                .WithMany(workshopService => workshopService.AppointmentServices)
+                .HasForeignKey(service => service.WorkshopServiceId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AppointmentNote>(entity =>
+        {
+            entity.Property(note => note.Content).HasMaxLength(500).IsRequired();
+
+            entity.HasOne(note => note.Appointment)
+                .WithMany(appointment => appointment.Notes)
+                .HasForeignKey(note => note.AppointmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(note => note.Employee)
+                .WithMany(employee => employee.AppointmentNotes)
+                .HasForeignKey(note => note.EmployeeId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }
